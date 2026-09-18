@@ -64,6 +64,35 @@ INDICADORES = {
     "Turismo_tasa_ocupacion_pct": "Tasa de ocupación hotelera (%, oct. 2025, INDEC)",
 }
 
+# Campos que son porcentajes/tasas: para el resumen provincial se promedian (no se suman).
+# Todo lo que no esté acá se trata como cantidad total y se suma.
+CAMPOS_TASA = {
+    "Educ_secundaria_completa_pct", "Salud_solo_publico_pct", "Pob_65mas_pct",
+    "Agricultura_frutales_pct", "Agricultura_forrajeras_pct", "Riego_pct_superficie_regada",
+    "Ganaderia_bovinos_pct", "Ganaderia_ovinos_pct", "Ganaderia_caprinos_pct",
+    "Turismo_tasa_ocupacion_pct",
+}
+SUPERFICIE_TOTAL_RN_KM2 = 203013  # fuente: Gobierno de Río Negro, rionegro.gov.ar/geografia
+
+
+def construir_resumen_provincial(df_base):
+    """Arma una fila sintética con el resumen de toda la provincia (o de la región filtrada)."""
+    resumen = {"Departamento": "Toda la provincia", "Region": "Río Negro (13 departamentos)"}
+    for key in INDICADORES:
+        if key not in df_base.columns:
+            continue
+        serie = df_base[key].dropna()
+        if key == "Densidad_hab_km2":
+            resumen[key] = df_base["Poblacion"].sum() / SUPERFICIE_TOTAL_RN_KM2
+        elif key in CAMPOS_TASA:
+            resumen[key] = serie.mean() if len(serie) else None
+        else:
+            resumen[key] = serie.sum() if len(serie) else None
+    for key in CAMPOS_TEXTO:
+        resumen[key] = None  # los campos de texto no se resumen a nivel provincial
+    return pd.Series(resumen)
+
+
 # Campos categóricos/de texto que se muestran en la ficha de perfil pero no en el selector de mapa
 CAMPOS_TEXTO = {
     "Ganaderia_especie_predominante": "Especie ganadera predominante",
@@ -125,7 +154,7 @@ indicador_label = INDICADORES[indicador_key]
 
 departamento_sel = st.sidebar.selectbox(
     "Ver perfil de un departamento",
-    options=["(ninguno)"] + df_filtrado["Departamento"].tolist(),
+    options=["Toda la provincia"] + df_filtrado["Departamento"].tolist(),
 )
 
 st.sidebar.markdown("---")
@@ -214,47 +243,56 @@ with col_mapa:
 with col_perfil:
     st.subheader("Perfil territorial")
 
-    if departamento_sel == "(ninguno)":
-        st.caption("Seleccioná un departamento en la barra lateral para ver su ficha.")
+    if departamento_sel == "Toda la provincia":
+        fila = construir_resumen_provincial(df_filtrado)
+        st.markdown(f"### {fila['Departamento']}")
+        st.caption(
+            f"Región: {fila['Region']}" if region_sel == "Todas"
+            else f"Resumen de la región: {region_sel}"
+        )
+        st.caption(
+            "Los valores son la suma de los 13 departamentos (o el promedio, cuando el "
+            "indicador ya es un porcentaje/tasa)."
+        )
     else:
         fila = df[df["Departamento"] == departamento_sel].iloc[0]
         st.markdown(f"### {fila['Departamento']}")
         st.caption(f"Región: {fila['Region']}")
 
-        grupos = {
-            "Población": ["Poblacion", "Densidad_hab_km2", "Educ_secundaria_completa_pct",
-                          "Salud_solo_publico_pct", "Pob_65mas_pct"],
-            "Producción agropecuaria": ["Agricultura_superficie_implantada_ha", "Agricultura_frutales_pct",
-                                        "Agricultura_forrajeras_pct", "Riego_pct_superficie_regada"],
-            "Ganadería": ["Ganaderia_cabezas_totales", "Ganaderia_especie_predominante",
-                         "Ganaderia_bovinos_pct", "Ganaderia_ovinos_pct", "Ganaderia_caprinos_pct"],
-            "Minería": ["Mineria_minas_formales_totales", "Mineria_mineral_predominante",
-                       "Mineria_minerales_diferentes"],
-            "Energía": ["Energia_MW_instalada", "Energia_MW_hidraulica", "Energia_MW_eolica",
-                       "Energia_MW_termica", "Energia_proyectos_en_desarrollo"],
-            "Hidrocarburos": ["Hidrocarburos_pozos_totales", "Hidrocarburos_pozos_extraccion_efectiva",
-                              "Hidrocarburos_prod_petroleo_m3_2025", "Hidrocarburos_prod_gas_miles_m3_2025"],
-            "Turismo": ["Turismo_localidades_con_alojamiento", "Turismo_parques_nacionales",
-                       "Turismo_areas_naturales_protegidas",
-                       "Turismo_plazas_disponibles_oct2025", "Turismo_pernoctaciones_oct2025",
-                       "Turismo_tasa_ocupacion_pct", "Turismo_destino_relevado_indec"],
-        }
+    grupos = {
+        "Población": ["Poblacion", "Densidad_hab_km2", "Educ_secundaria_completa_pct",
+                      "Salud_solo_publico_pct", "Pob_65mas_pct"],
+        "Producción agropecuaria": ["Agricultura_superficie_implantada_ha", "Agricultura_frutales_pct",
+                                    "Agricultura_forrajeras_pct", "Riego_pct_superficie_regada"],
+        "Ganadería": ["Ganaderia_cabezas_totales", "Ganaderia_especie_predominante",
+                     "Ganaderia_bovinos_pct", "Ganaderia_ovinos_pct", "Ganaderia_caprinos_pct"],
+        "Minería": ["Mineria_minas_formales_totales", "Mineria_mineral_predominante",
+                   "Mineria_minerales_diferentes"],
+        "Energía": ["Energia_MW_instalada", "Energia_MW_hidraulica", "Energia_MW_eolica",
+                   "Energia_MW_termica", "Energia_proyectos_en_desarrollo"],
+        "Hidrocarburos": ["Hidrocarburos_pozos_totales", "Hidrocarburos_pozos_extraccion_efectiva",
+                          "Hidrocarburos_prod_petroleo_m3_2025", "Hidrocarburos_prod_gas_miles_m3_2025"],
+        "Turismo": ["Turismo_localidades_con_alojamiento", "Turismo_parques_nacionales",
+                   "Turismo_areas_naturales_protegidas",
+                   "Turismo_plazas_disponibles_oct2025", "Turismo_pernoctaciones_oct2025",
+                   "Turismo_tasa_ocupacion_pct", "Turismo_destino_relevado_indec"],
+    }
 
-        for titulo, campos in grupos.items():
-            with st.expander(titulo, expanded=(titulo == "Población")):
-                for key in campos:
-                    if key not in fila or pd.isna(fila[key]):
-                        continue
-                    label = INDICADORES.get(key) or CAMPOS_TEXTO.get(key, key)
-                    valor = fila[key]
-                    if isinstance(valor, str):
-                        st.metric(label, valor)
-                    else:
-                        st.metric(label, f"{valor:,.2f}".rstrip("0").rstrip("."))
+    for titulo, campos in grupos.items():
+        with st.expander(titulo, expanded=(titulo == "Población")):
+            for key in campos:
+                if key not in fila or pd.isna(fila[key]):
+                    continue
+                label = INDICADORES.get(key) or CAMPOS_TEXTO.get(key, key)
+                valor = fila[key]
+                if isinstance(valor, str):
+                    st.metric(label, valor)
+                else:
+                    st.metric(label, f"{valor:,.2f}".rstrip("0").rstrip("."))
 
-        if isinstance(fila.get("Fuente_notas"), str):
-            with st.expander("Fuentes y notas metodológicas"):
-                st.write(fila["Fuente_notas"])
+    if isinstance(fila.get("Fuente_notas"), str):
+        with st.expander("Fuentes y notas metodológicas"):
+            st.write(fila["Fuente_notas"])
 
 # ---------------------------------------------------------------------------
 # Comparación entre departamentos
