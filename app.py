@@ -219,50 +219,62 @@ with col_mapa:
     if indicador_key in INDICADORES_COBERTURA_PARCIAL:
         st.warning(f"⚠️ Cobertura parcial: {INDICADORES_COBERTURA_PARCIAL[indicador_key]}")
 
+    mapa_ok = False
     if geojson is not None:
-        fig = px.choropleth_map(
-            df_filtrado,
-            geojson=geojson,
-            locations="Departamento",
-            featureidkey=f"properties.{GEOJSON_NAME_FIELD}",
-            color=indicador_key,
-            color_continuous_scale="YlOrRd",
-            map_style="carto-positron",
-            zoom=4.6,
-            center={"lat": -40.8, "lon": -67.5},
-            opacity=0.75,
-            hover_name="Departamento",
-            hover_data={indicador_key: True, "Region": True},
-        )
-        fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, height=550)
+        try:
+            fig = px.choropleth_map(
+                df_filtrado,
+                geojson=geojson,
+                locations="Departamento",
+                featureidkey=f"properties.{GEOJSON_NAME_FIELD}",
+                color=indicador_key,
+                color_continuous_scale="YlOrRd",
+                map_style="carto-positron",
+                zoom=4.6,
+                center={"lat": -40.8, "lon": -67.5},
+                opacity=0.75,
+                hover_name="Departamento",
+                hover_data={indicador_key: True, "Region": True},
+            )
+            fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, height=550)
 
-        # Centrales del Limay: solo como referencia visual, no coloreadas ni sumadas al total de RN
-        fig.add_scattermap(
-            lat=[c["lat"] for c in CENTRALES_LIMAY],
-            lon=[c["lon"] for c in CENTRALES_LIMAY],
-            mode="markers+text",
-            marker={"size": 12, "color": "#1f77b4", "symbol": "circle"},
-            text=[c["nombre"] for c in CENTRALES_LIMAY],
-            textposition="top center",
-            hovertext=[f"{c['nombre']} — {c['potencia_mw']} MW (compartida con Neuquén, no incluida en el total de RN)"
-                       for c in CENTRALES_LIMAY],
-            hoverinfo="text",
-            name="Centrales del río Limay (compartidas con Neuquén)",
-            showlegend=True,
-        )
-        fig.update_layout(legend={"orientation": "h", "yanchor": "bottom", "y": 1.02})
+            # Centrales del Limay: solo como referencia visual, no coloreadas ni sumadas al total de RN
+            fig.add_scattermap(
+                lat=[c["lat"] for c in CENTRALES_LIMAY],
+                lon=[c["lon"] for c in CENTRALES_LIMAY],
+                mode="markers+text",
+                marker={"size": 12, "color": "#1f77b4", "symbol": "circle"},
+                text=[c["nombre"] for c in CENTRALES_LIMAY],
+                textposition="top center",
+                hovertext=[f"{c['nombre']} — {c['potencia_mw']} MW (compartida con Neuquén, no incluida en el total de RN)"
+                           for c in CENTRALES_LIMAY],
+                hoverinfo="text",
+                name="Centrales del río Limay (compartidas con Neuquén)",
+                showlegend=True,
+            )
+            fig.update_layout(legend={"orientation": "h", "yanchor": "bottom", "y": 1.02})
 
-        st.plotly_chart(fig, use_container_width=True)
-        st.caption(
-            "Los puntos azules son las 5 centrales hidroeléctricas del río Limay, compartidas con "
-            "Neuquén. No están coloreadas por departamento ni suman al total de MW de Río Negro."
-        )
-    else:
-        st.info(
-            "Todavía no se encontró data/rio_negro_departamentos.geojson. "
-            "Mientras tanto se muestra un gráfico de barras con el mismo indicador. "
-            "Ver README.md para exportar el GeoJSON desde tu capa del IGN en GeoPandas."
-        )
+            st.plotly_chart(fig, use_container_width=True)
+            st.caption(
+                "Los puntos azules son las 5 centrales hidroeléctricas del río Limay, compartidas con "
+                "Neuquén. No están coloreadas por departamento ni suman al total de MW de Río Negro."
+            )
+            mapa_ok = True
+        except Exception as e:
+            st.error(
+                "No se pudo dibujar el mapa geográfico (error técnico, no es un problema con los "
+                "datos). Se muestra el gráfico de barras como alternativa."
+            )
+            with st.expander("Detalle técnico del error"):
+                st.code(str(e))
+
+    if not mapa_ok:
+        if geojson is None:
+            st.info(
+                "Todavía no se encontró data/rio_negro_departamentos.geojson. "
+                "Mientras tanto se muestra un gráfico de barras con el mismo indicador. "
+                "Ver README.md para exportar el GeoJSON desde tu capa del IGN en GeoPandas."
+            )
         fig_bar = px.bar(
             df_filtrado.sort_values(indicador_key, ascending=False),
             x="Departamento",
