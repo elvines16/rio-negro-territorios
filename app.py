@@ -82,6 +82,19 @@ CAMPOS_TASA = {
 }
 SUPERFICIE_TOTAL_RN_KM2 = 203013  # fuente: Gobierno de Río Negro, rionegro.gov.ar/geografia
 
+# Indicadores que NO cubren los 13 departamentos (solo destinos relevados por una fuente puntual).
+# Se muestran igual, pero con una advertencia explícita para no sugerir comparabilidad provincial.
+INDICADORES_COBERTURA_PARCIAL = {
+    "Turismo_plazas_disponibles_oct2025": "Solo releva 3 de los 13 departamentos: Bariloche, "
+        "San Antonio (destino Las Grutas) y Adolfo Alsina (destino Viedma), según la muestra de "
+        "51 destinos turísticos de la Encuesta de Ocupación Hotelera del INDEC. El resto de los "
+        "departamentos no forma parte de esa muestra: la ausencia de color no significa \"cero\".",
+    "Turismo_pernoctaciones_oct2025": "Solo releva 3 de los 13 departamentos (ver Plazas "
+        "disponibles). No es comparable como indicador de toda la provincia.",
+    "Turismo_tasa_ocupacion_pct": "Solo releva 3 de los 13 departamentos (ver Plazas "
+        "disponibles). No es comparable como indicador de toda la provincia.",
+}
+
 
 def construir_resumen_provincial(df_base):
     """Arma una fila sintética con el resumen de toda la provincia (o de la región filtrada)."""
@@ -189,6 +202,9 @@ col_mapa, col_perfil = st.columns([2, 1])
 
 with col_mapa:
     st.subheader(f"Mapa: {indicador_label}")
+
+    if indicador_key in INDICADORES_COBERTURA_PARCIAL:
+        st.warning(f"⚠️ Cobertura parcial: {INDICADORES_COBERTURA_PARCIAL[indicador_key]}")
 
     if geojson is not None:
         fig = px.choropleth_map(
