@@ -78,6 +78,8 @@ INDICADORES = {
     "Turismo_tasa_ocupacion_pct": "Tasa de ocupación hotelera (%, oct. 2025, INDEC)",
     "Conectividad_aeropuertos": "Aeropuertos con código IATA",
     "Conectividad_estaciones_tren": "Estaciones del Tren Patagónico",
+    "Industria_parques_industriales": "Parques industriales y tecnológicos",
+    "Pesca_desembarque_toneladas_2025": "Desembarque pesquero 2025 (toneladas)",
 }
 
 # Campos que son porcentajes/tasas: para el resumen provincial se promedian (no se suman).
@@ -133,6 +135,7 @@ CAMPOS_TEXTO = {
     "Conectividad_puerto": "Puerto",
     "Ambiente_ecorregion": "Ecorregión",
     "Ambiente_rio_principal": "Río / cuerpo de agua principal",
+    "Ambiente_clima": "Caracterización climática",
 }
 
 # Centrales hidroeléctricas del río Limay: generación compartida con Neuquén.
@@ -331,8 +334,9 @@ with col_perfil:
                    "Turismo_tasa_ocupacion_pct", "Turismo_destino_relevado_indec"],
         "Conectividad": ["Conectividad_aeropuertos", "Conectividad_estaciones_tren",
                          "Conectividad_rutas_nacionales", "Conectividad_puerto"],
-        "Ambiente": ["Ambiente_ecorregion", "Ambiente_rio_principal",
+        "Ambiente": ["Ambiente_ecorregion", "Ambiente_rio_principal", "Ambiente_clima",
                     "Turismo_parques_nacionales", "Turismo_areas_naturales_protegidas"],
+        "Pesca e industria": ["Pesca_desembarque_toneladas_2025", "Industria_parques_industriales"],
     }
 
     for titulo, campos in grupos.items():
