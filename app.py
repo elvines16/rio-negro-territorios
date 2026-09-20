@@ -27,6 +27,72 @@ st.set_page_config(
     layout="wide",
 )
 
+# ---------------------------------------------------------------------------
+# Estilo visual (tipografía, paleta, componentes)
+# ---------------------------------------------------------------------------
+
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap');
+
+html, body, [class*="css"] {
+    font-family: 'Inter', sans-serif;
+}
+
+h1, h2, h3 {
+    font-family: 'Fraunces', serif !important;
+    letter-spacing: -0.01em;
+}
+
+.hero-title {
+    font-family: 'Fraunces', serif;
+    font-size: 2.6rem;
+    font-weight: 700;
+    color: #2B2B26;
+    line-height: 1.1;
+    margin-bottom: 0.2rem;
+}
+.hero-subtitle {
+    font-family: 'Inter', sans-serif;
+    font-size: 1.05rem;
+    color: #6B6558;
+    margin-bottom: 1.4rem;
+}
+.region-chip {
+    display: inline-block;
+    padding: 3px 12px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-right: 6px;
+    margin-bottom: 6px;
+    color: white;
+}
+.chip-andina { background-color: #2F5D45; }
+.chip-linea-sur { background-color: #B5793A; }
+.chip-valle { background-color: #4C8C5B; }
+.chip-costa { background-color: #2A5C7A; }
+
+[data-testid="stMetric"] {
+    background-color: #F0EBE1;
+    border-radius: 10px;
+    padding: 10px 14px;
+    border-left: 4px solid #C77B3F;
+}
+[data-testid="stMetricLabel"] {
+    font-size: 0.8rem;
+    color: #6B6558;
+}
+
+section[data-testid="stSidebar"] {
+    background-color: #2B2B26;
+}
+section[data-testid="stSidebar"] * {
+    color: #F0EBE1 !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 CSV_PATH = os.path.join(DATA_DIR, "tabla_maestra.csv")
 GEOJSON_PATH = os.path.join(DATA_DIR, "rio_negro_departamentos.geojson")
@@ -204,10 +270,24 @@ st.sidebar.caption(
 # Encabezado
 # ---------------------------------------------------------------------------
 
-st.title("Río Negro: una provincia, territorios distintos")
 st.markdown(
-    "Explorá cómo cambian la población, la educación, la salud, la producción, "
-    "la minería y la energía según el departamento y la región que selecciones."
+    """
+    <div class="hero-title">Río Negro: una provincia, territorios distintos</div>
+    <div class="hero-subtitle">
+        Explorá cómo cambian la población, la educación, la salud, la producción,
+        la minería, la energía y el ambiente según el departamento y la región que selecciones.
+    </div>
+    <div>
+        <span class="region-chip chip-valle">🍎 Alto Valle</span>
+        <span class="region-chip chip-valle">🌾 Valle Medio</span>
+        <span class="region-chip chip-valle">🌱 Río Colorado</span>
+        <span class="region-chip chip-linea-sur">🐑 Línea Sur</span>
+        <span class="region-chip chip-andina">🏔️ Región Andina</span>
+        <span class="region-chip chip-costa">🌊 Costa Atlántica</span>
+    </div>
+    <br>
+    """,
+    unsafe_allow_html=True,
 )
 
 col_mapa, col_perfil = st.columns([2, 1])
