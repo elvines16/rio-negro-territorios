@@ -117,6 +117,18 @@ DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 CSV_PATH = os.path.join(DATA_DIR, "tabla_maestra.csv")
 GEOJSON_PATH = os.path.join(DATA_DIR, "rio_negro_departamentos.geojson")
 
+# Capas geográficas opcionales (IGN), recortadas al área de Río Negro. Si el archivo no está,
+# la app simplemente no ofrece esa capa como opción (no rompe nada).
+CAPAS_GEOGRAFICAS = {
+    "rios": {"label": "Ríos principales", "file": "rios_principales_rn.geojson", "color": "#2A6F97", "tipo": "linea"},
+    "canales": {"label": "Canales de riego", "file": "canales_rn.geojson", "color": "#4FA3C7", "tipo": "linea"},
+    "embalses": {"label": "Embalses", "file": "embalses_rn.geojson", "color": "#1B4965", "tipo": "linea"},
+    "ferrocarril": {"label": "Tren Patagónico (vías)", "file": "ferrocarril_rn.geojson", "color": "#6B6558", "tipo": "linea"},
+    "estaciones_tren": {"label": "Estaciones de tren", "file": "estaciones_tren_rn.geojson", "color": "#6B6558", "tipo": "punto"},
+    "vial_nacional": {"label": "Rutas nacionales", "file": "vial_nacional_rn.geojson", "color": "#C77B3F", "tipo": "linea"},
+    "vial_provincial": {"label": "Rutas provinciales", "file": "vial_provincial_rn.geojson", "color": "#D9A05B", "tipo": "linea"},
+}
+
 # Columna del GeoJSON que contiene el nombre del departamento.
 # En la capa del IGN usada acá, la columna se llama "nam".
 GEOJSON_NAME_FIELD = "nam"
@@ -253,6 +265,55 @@ def cargar_geojson():
         return json.load(f)
 
 
+@st.cache_data
+def cargar_capa_geografica(nombre_archivo):
+    path = os.path.join(DATA_DIR, nombre_archivo)
+    if not os.path.exists(path):
+        return None
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def lineas_a_lat_lon(geojson_data):
+    """Convierte features LineString/MultiLineString/Polygon/MultiPolygon en listas
+    planas lat/lon con None como separador, listas para un único trace de Scattermap.
+    Para polígonos, se dibuja solo el anillo exterior (sin agujeros)."""
+    lats, lons = [], []
+    for feat in geojson_data["features"]:
+        geom = feat["geometry"]
+        tipo = geom["type"]
+        if tipo == "LineString":
+            partes = [geom["coordinates"]]
+        elif tipo == "MultiLineString":
+            partes = geom["coordinates"]
+        elif tipo == "Polygon":
+            partes = [geom["coordinates"][0]]  # solo anillo exterior
+        elif tipo == "MultiPolygon":
+            partes = [poly[0] for poly in geom["coordinates"]]  # anillo exterior de cada parte
+        else:
+            continue
+        for parte in partes:
+            for lon, lat in parte:
+                lats.append(lat)
+                lons.append(lon)
+            lats.append(None)
+            lons.append(None)
+    return lats, lons
+
+
+def puntos_a_lat_lon(geojson_data):
+    lats, lons, nombres = [], [], []
+    for feat in geojson_data["features"]:
+        geom = feat["geometry"]
+        if geom["type"] != "Point":
+            continue
+        lon, lat = geom["coordinates"][:2]
+        lats.append(lat)
+        lons.append(lon)
+        nombres.append(feat["properties"].get("nam") or feat["properties"].get("fna") or "")
+    return lats, lons, nombres
+
+
 df = cargar_tabla()
 geojson = cargar_geojson()
 
@@ -279,6 +340,16 @@ departamento_sel = st.sidebar.selectbox(
     "Ver perfil de un departamento",
     options=["Toda la provincia"] + df_filtrado["Departamento"].tolist(),
 )
+
+st.sidebar.markdown("---")
+st.sidebar.caption("Capas de referencia sobre el mapa")
+capas_activas = {}
+for clave, info in CAPAS_GEOGRAFICAS.items():
+    datos_capa = cargar_capa_geografica(info["file"])
+    if datos_capa is None:
+        continue  # el archivo no está disponible todavía: no se ofrece la opción
+    activo_por_defecto = clave in ("rios",)
+    capas_activas[clave] = st.sidebar.checkbox(info["label"], value=activo_por_defecto)
 
 st.sidebar.markdown("---")
 st.sidebar.caption(
@@ -345,6 +416,37 @@ with col_mapa:
                 paper_bgcolor="#FBF9F5",
                 font={"family": "Inter, sans-serif", "color": "#2B2B26"},
             )
+
+            # Capas geográficas de referencia (ríos, canales, rutas, ferrocarril) según lo tildado
+            for clave, activo in capas_activas.items():
+                if not activo:
+                    continue
+                info = CAPAS_GEOGRAFICAS[clave]
+                datos_capa = cargar_capa_geografica(info["file"])
+                if info["tipo"] == "linea":
+                    lats, lons = lineas_a_lat_lon(datos_capa)
+                    relleno = clave == "embalses"
+                    fig.add_scattermap(
+                        lat=lats, lon=lons,
+                        mode="lines",
+                        line={"width": 1.6, "color": info["color"]},
+                        fill="toself" if relleno else "none",
+                        fillcolor=f"{info['color']}55" if relleno else None,
+                        name=info["label"],
+                        hoverinfo="name",
+                        showlegend=True,
+                    )
+                else:  # punto
+                    lats, lons, nombres = puntos_a_lat_lon(datos_capa)
+                    fig.add_scattermap(
+                        lat=lats, lon=lons,
+                        mode="markers",
+                        marker={"size": 7, "color": info["color"]},
+                        text=nombres,
+                        hoverinfo="text",
+                        name=info["label"],
+                        showlegend=True,
+                    )
 
             # Centrales del Limay: solo como referencia visual, no coloreadas ni sumadas al total de RN
             fig.add_scattermap(
