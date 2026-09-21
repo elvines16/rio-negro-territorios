@@ -39,6 +39,13 @@ html, body, [class*="css"] {
     font-family: 'Inter', sans-serif;
 }
 
+.stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
+    background-color: #FBF9F5 !important;
+}
+[data-testid="stHeader"] {
+    background-color: transparent !important;
+}
+
 h1, h2, h3 {
     font-family: 'Fraunces', serif !important;
     letter-spacing: -0.01em;
@@ -353,7 +360,11 @@ with col_mapa:
                 name="Centrales del río Limay (compartidas con Neuquén)",
                 showlegend=True,
             )
-            fig.update_layout(legend={"orientation": "h", "yanchor": "bottom", "y": 1.02})
+            fig.update_layout(legend={
+                "orientation": "h", "yanchor": "bottom", "y": 1.02,
+                "bgcolor": "rgba(251,249,245,0.9)",
+                "font": {"family": "Inter, sans-serif", "color": "#2B2B26"},
+            })
 
             st.plotly_chart(fig, use_container_width=True)
             st.caption(
