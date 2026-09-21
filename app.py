@@ -84,6 +84,17 @@ h1, h2, h3 {
     color: #6B6558;
 }
 
+[data-testid="stExpander"] {
+    background-color: #FBF9F5;
+    border: 1px solid #E3DBCB;
+    border-radius: 10px;
+}
+[data-testid="stExpander"] summary {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    color: #2B2B26;
+}
+
 section[data-testid="stSidebar"] {
     background-color: #F0EBE1;
     border-right: 3px solid #C77B3F;
@@ -321,7 +332,12 @@ with col_mapa:
                 hover_name="Departamento",
                 hover_data={indicador_key: True, "Region": True},
             )
-            fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0}, height=550)
+            fig.update_layout(
+                margin={"r": 0, "t": 0, "l": 0, "b": 0},
+                height=550,
+                paper_bgcolor="#FBF9F5",
+                font={"family": "Inter, sans-serif", "color": "#2B2B26"},
+            )
 
             # Centrales del Limay: solo como referencia visual, no coloreadas ni sumadas al total de RN
             fig.add_scattermap(
@@ -367,7 +383,12 @@ with col_mapa:
             color="Region",
             labels={indicador_key: indicador_label},
         )
-        fig_bar.update_layout(height=550)
+        fig_bar.update_layout(
+            height=550,
+            paper_bgcolor="#FBF9F5",
+            plot_bgcolor="#FBF9F5",
+            font={"family": "Inter, sans-serif", "color": "#2B2B26"},
+        )
         st.plotly_chart(fig_bar, use_container_width=True)
 
 # ---------------------------------------------------------------------------
@@ -460,7 +481,12 @@ if len(comparar) >= 2:
         text=indicador_key,
         labels={indicador_key: indicador_label},
     )
-    fig_comp.update_layout(height=400)
+    fig_comp.update_layout(
+        height=400,
+        paper_bgcolor="#FBF9F5",
+        plot_bgcolor="#FBF9F5",
+        font={"family": "Inter, sans-serif", "color": "#2B2B26"},
+    )
     st.plotly_chart(fig_comp, use_container_width=True)
 else:
     st.caption("Elegí al menos dos departamentos para ver la comparación.")
