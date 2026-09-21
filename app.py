@@ -85,10 +85,12 @@ h1, h2, h3 {
 }
 
 section[data-testid="stSidebar"] {
-    background-color: #2B2B26;
+    background-color: #F0EBE1;
+    border-right: 3px solid #C77B3F;
 }
-section[data-testid="stSidebar"] * {
-    color: #F0EBE1 !important;
+section[data-testid="stSidebar"] .hero-title,
+section[data-testid="stSidebar"] h1 {
+    color: #2B2B26 !important;
 }
 </style>
 """, unsafe_allow_html=True)
