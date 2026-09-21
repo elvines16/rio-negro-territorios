@@ -274,6 +274,12 @@ def cargar_capa_geografica(nombre_archivo):
         return json.load(f)
 
 
+def hex_a_rgba(hex_color, alpha=0.35):
+    hex_color = hex_color.lstrip("#")
+    r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
+
 def lineas_a_lat_lon(geojson_data):
     """Convierte features LineString/MultiLineString/Polygon/MultiPolygon en listas
     planas lat/lon con None como separador, listas para un único trace de Scattermap.
@@ -431,7 +437,7 @@ with col_mapa:
                         mode="lines",
                         line={"width": 1.6, "color": info["color"]},
                         fill="toself" if relleno else "none",
-                        fillcolor=f"{info['color']}55" if relleno else None,
+                        fillcolor=hex_a_rgba(info["color"]) if relleno else None,
                         name=info["label"],
                         hoverinfo="name",
                         showlegend=True,
