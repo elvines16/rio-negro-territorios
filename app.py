@@ -102,6 +102,24 @@ h1, h2, h3 {
     color: #2B2B26;
 }
 
+div[data-testid="stButton"] > button {
+    border-radius: 999px;
+    border: none;
+    background-color: #F0EBE1;
+    color: #2B2B26;
+    font-weight: 600;
+    font-size: 0.85rem;
+    padding: 6px 4px;
+}
+div[data-testid="stButton"] > button:hover {
+    background-color: #C77B3F;
+    color: white;
+}
+div[data-testid="stButton"] > button:focus:not(:active) {
+    border-color: #C77B3F;
+    color: #2B2B26;
+}
+
 section[data-testid="stSidebar"] {
     background-color: #F0EBE1;
     border-right: 3px solid #C77B3F;
@@ -127,6 +145,8 @@ CAPAS_GEOGRAFICAS = {
     "estaciones_tren": {"label": "Estaciones de tren", "file": "estaciones_tren_rn.geojson", "color": "#6B6558", "tipo": "punto"},
     "vial_nacional": {"label": "Rutas nacionales", "file": "vial_nacional_rn.geojson", "color": "#C77B3F", "tipo": "linea"},
     "vial_provincial": {"label": "Rutas provinciales", "file": "vial_provincial_rn.geojson", "color": "#D9A05B", "tipo": "linea"},
+    "mineria_puntos": {"label": "Registros mineros", "file": "mineria_puntos.geojson", "color": "#8B5E3C", "tipo": "punto"},
+    "pozos_hidrocarburos": {"label": "Pozos de petróleo/gas activos", "file": "hidrocarburos_pozos_activos.geojson", "color": "#3B3B3B", "tipo": "punto"},
 }
 
 # Columna del GeoJSON que contiene el nombre del departamento.
@@ -331,8 +351,15 @@ geojson = cargar_geojson()
 st.sidebar.title("Río Negro")
 st.sidebar.caption("Una provincia, territorios distintos")
 
+# Estado inicial (permite que el mapa y los chips de región actualicen estos valores
+# desde afuera de los propios widgets, con key= para que se sincronicen entre sí)
+if "region_sel" not in st.session_state:
+    st.session_state["region_sel"] = "Todas"
+if "departamento_sel" not in st.session_state:
+    st.session_state["departamento_sel"] = "Toda la provincia"
+
 regiones = ["Todas"] + sorted(df["Region"].dropna().unique().tolist())
-region_sel = st.sidebar.selectbox("Región", regiones)
+region_sel = st.sidebar.selectbox("Región", regiones, key="region_sel")
 
 df_filtrado = df if region_sel == "Todas" else df[df["Region"] == region_sel]
 
@@ -343,9 +370,13 @@ indicador_key = st.sidebar.selectbox(
 )
 indicador_label = INDICADORES[indicador_key]
 
+opciones_depto = ["Toda la provincia"] + df_filtrado["Departamento"].tolist()
+if st.session_state["departamento_sel"] not in opciones_depto:
+    st.session_state["departamento_sel"] = "Toda la provincia"
 departamento_sel = st.sidebar.selectbox(
     "Ver perfil de un departamento",
-    options=["Toda la provincia"] + df_filtrado["Departamento"].tolist(),
+    options=opciones_depto,
+    key="departamento_sel",
 )
 
 st.sidebar.markdown("---")
@@ -374,19 +405,32 @@ st.markdown(
     <div class="hero-subtitle">
         Explorá cómo cambian la población, la educación, la salud, la producción,
         la minería, la energía y el ambiente según el departamento y la región que selecciones.
+        Tocá una región abajo, o cualquier departamento del mapa, para filtrar.
     </div>
-    <div>
-        <span class="region-chip chip-valle">🍎 Alto Valle</span>
-        <span class="region-chip chip-valle">🌾 Valle Medio</span>
-        <span class="region-chip chip-valle">🌱 Río Colorado</span>
-        <span class="region-chip chip-linea-sur">🐑 Línea Sur</span>
-        <span class="region-chip chip-andina">🏔️ Región Andina</span>
-        <span class="region-chip chip-costa">🌊 Costa Atlántica</span>
-    </div>
-    <br>
     """,
     unsafe_allow_html=True,
 )
+
+REGIONES_CHIPS = [
+    ("Alto Valle", "🍎", "chip-valle"),
+    ("Valle Medio", "🌾", "chip-valle"),
+    ("Rio Colorado", "🌱", "chip-valle"),
+    ("Linea Sur", "🐑", "chip-linea-sur"),
+    ("Region Andina", "🏔️", "chip-andina"),
+    ("Costa Atlantica", "🌊", "chip-costa"),
+]
+cols_chips = st.columns(len(REGIONES_CHIPS) + 1)
+with cols_chips[0]:
+    if st.button("Todas", key="chip_todas", use_container_width=True):
+        st.session_state["region_sel"] = "Todas"
+        st.rerun()
+for col, (nombre, emoji, clase) in zip(cols_chips[1:], REGIONES_CHIPS):
+    with col:
+        etiqueta = nombre.replace("Rio", "Río").replace("Region", "Región")
+        if st.button(f"{emoji} {etiqueta}", key=f"chip_{nombre}", use_container_width=True):
+            st.session_state["region_sel"] = nombre
+            st.rerun()
+st.markdown("<br>", unsafe_allow_html=True)
 
 col_mapa, col_perfil = st.columns([2, 1])
 
@@ -475,12 +519,28 @@ with col_mapa:
                 "font": {"family": "Inter, sans-serif", "color": "#2B2B26"},
             })
 
-            st.plotly_chart(fig, use_container_width=True)
+            evento_mapa = st.plotly_chart(
+                fig, use_container_width=True,
+                on_select="rerun", selection_mode="points", key="mapa_click",
+            )
             st.caption(
+                "💡 Tocá cualquier departamento del mapa para ver su ficha. "
                 "Los puntos azules son las 5 centrales hidroeléctricas del río Limay, compartidas con "
-                "Neuquén. No están coloreadas por departamento ni suman al total de MW de Río Negro."
+                "Neuquén: no están coloreadas por departamento ni suman al total de MW de Río Negro."
             )
             mapa_ok = True
+
+            # Si el usuario clickeó un departamento en el mapa, sincronizamos el selector de perfil
+            try:
+                puntos = evento_mapa.selection.points if evento_mapa else []
+            except AttributeError:
+                puntos = (evento_mapa or {}).get("selection", {}).get("points", [])
+            if puntos:
+                depto_click = puntos[0].get("location")
+                if depto_click and depto_click in df["Departamento"].values \
+                        and depto_click != st.session_state.get("departamento_sel"):
+                    st.session_state["departamento_sel"] = depto_click
+                    st.rerun()
         except Exception as e:
             st.error(
                 "No se pudo dibujar el mapa geográfico (error técnico, no es un problema con los "
@@ -611,6 +671,58 @@ if len(comparar) >= 2:
     st.plotly_chart(fig_comp, use_container_width=True)
 else:
     st.caption("Elegí al menos dos departamentos para ver la comparación.")
+
+# ---------------------------------------------------------------------------
+# Relación entre dos variables (gráfico de dispersión)
+# ---------------------------------------------------------------------------
+
+st.markdown("---")
+st.subheader("¿Se relacionan dos variables entre sí?")
+st.caption(
+    "Elegí dos dimensiones y mirá si los departamentos siguen un patrón: por ejemplo, "
+    "¿los más poblados son también los que más energía generan?"
+)
+
+col_x, col_y = st.columns(2)
+with col_x:
+    var_x = st.selectbox(
+        "Eje horizontal", options=list(INDICADORES.keys()),
+        format_func=lambda k: INDICADORES[k], key="scatter_x",
+        index=list(INDICADORES.keys()).index("Poblacion"),
+    )
+with col_y:
+    opciones_y = [k for k in INDICADORES if k != var_x]
+    default_y = "Energia_MW_instalada" if "Energia_MW_instalada" in opciones_y else opciones_y[0]
+    var_y = st.selectbox(
+        "Eje vertical", options=opciones_y,
+        format_func=lambda k: INDICADORES[k], key="scatter_y",
+        index=opciones_y.index(default_y),
+    )
+
+df_scatter = df.dropna(subset=[var_x, var_y])
+if len(df_scatter) >= 2:
+    fig_scatter = px.scatter(
+        df_scatter,
+        x=var_x, y=var_y,
+        color="Region",
+        text="Departamento",
+        labels={var_x: INDICADORES[var_x], var_y: INDICADORES[var_y]},
+    )
+    fig_scatter.update_traces(textposition="top center", marker={"size": 12})
+    fig_scatter.update_layout(
+        height=450,
+        paper_bgcolor="#FBF9F5",
+        plot_bgcolor="#FBF9F5",
+        font={"family": "Inter, sans-serif", "color": "#2B2B26"},
+    )
+    st.plotly_chart(fig_scatter, use_container_width=True)
+    st.caption(
+        f"{len(df_scatter)} de 13 departamentos tienen dato en ambas variables. "
+        "Cada punto es un departamento; si se agrupan formando una diagonal, hay relación "
+        "entre las dos variables. Si aparecen dispersos sin patrón, no la hay."
+    )
+else:
+    st.caption("No hay suficientes departamentos con datos en ambas variables para graficar.")
 
 # ---------------------------------------------------------------------------
 # Tabla completa (transparencia de datos)
