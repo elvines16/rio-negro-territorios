@@ -27,6 +27,14 @@ st.set_page_config(
     layout="wide",
 )
 
+# Si un botón o el mapa pidieron cambiar de región/departamento en la corrida anterior,
+# lo aplicamos ACÁ, antes de crear los widgets — Streamlit no permite tocar el valor de
+# un widget ya instanciado en la misma corrida, así que se resuelve al principio de la próxima.
+if "pending_region" in st.session_state:
+    st.session_state["region_sel"] = st.session_state.pop("pending_region")
+if "pending_departamento" in st.session_state:
+    st.session_state["departamento_sel"] = st.session_state.pop("pending_departamento")
+
 # ---------------------------------------------------------------------------
 # Estilo visual (tipografía, paleta, componentes)
 # ---------------------------------------------------------------------------
@@ -422,13 +430,13 @@ REGIONES_CHIPS = [
 cols_chips = st.columns(len(REGIONES_CHIPS) + 1)
 with cols_chips[0]:
     if st.button("Todas", key="chip_todas", use_container_width=True):
-        st.session_state["region_sel"] = "Todas"
+        st.session_state["pending_region"] = "Todas"
         st.rerun()
 for col, (nombre, emoji, clase) in zip(cols_chips[1:], REGIONES_CHIPS):
     with col:
         etiqueta = nombre.replace("Rio", "Río").replace("Region", "Región")
         if st.button(f"{emoji} {etiqueta}", key=f"chip_{nombre}", use_container_width=True):
-            st.session_state["region_sel"] = nombre
+            st.session_state["pending_region"] = nombre
             st.rerun()
 st.markdown("<br>", unsafe_allow_html=True)
 
@@ -539,7 +547,7 @@ with col_mapa:
                 depto_click = puntos[0].get("location")
                 if depto_click and depto_click in df["Departamento"].values \
                         and depto_click != st.session_state.get("departamento_sel"):
-                    st.session_state["departamento_sel"] = depto_click
+                    st.session_state["pending_departamento"] = depto_click
                     st.rerun()
         except Exception as e:
             st.error(
