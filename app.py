@@ -23,7 +23,7 @@ import streamlit as st
 # ---------------------------------------------------------------------------
 
 st.set_page_config(
-    page_title="Río Negro: una provincia, territorios distintos",
+    page_title="Río Negro: una provincia, seis mundos",
     layout="wide",
 )
 
@@ -59,6 +59,25 @@ h1, h2, h3 {
     letter-spacing: -0.01em;
 }
 
+.hero-kicker {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #C77B3F;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.3rem;
+}
+.hero-fact {
+    font-family: 'Inter', sans-serif;
+    font-size: 1rem;
+    background-color: #F0EBE1;
+    border-left: 4px solid #C77B3F;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 0.8rem 0 1.2rem 0;
+    color: #2B2B26;
+}
 .hero-title {
     font-family: 'Fraunces', serif;
     font-size: 2.6rem;
@@ -407,13 +426,22 @@ st.sidebar.caption(
 # Encabezado
 # ---------------------------------------------------------------------------
 
+_d = df.set_index("Departamento")["Densidad_hab_km2"]
+_dep_max, _dep_min = _d.idxmax(), _d.idxmin()
+_ratio_densidad = round(_d.max() / _d.min())
+
 st.markdown(
-    """
-    <div class="hero-title">Río Negro: una provincia, territorios distintos</div>
+    f"""
+    <div class="hero-kicker">¿Cómo puede una misma provincia contener territorios tan distintos?</div>
+    <div class="hero-title">Río Negro: una provincia, seis mundos</div>
     <div class="hero-subtitle">
-        Explorá cómo cambian la población, la educación, la salud, la producción,
-        la minería, la energía y el ambiente según el departamento y la región que selecciones.
-        Tocá una región abajo, o cualquier departamento del mapa, para filtrar.
+        No existe una única Río Negro. Explorá 18 dimensiones de datos abiertos —población,
+        producción, energía, ambiente— sobre sus 13 departamentos y 6 regiones, y descubrilo vos mismo.
+    </div>
+    <div class="hero-fact">
+        🔎 <b>{_dep_max}</b> tiene <b>{_ratio_densidad} veces</b> más densidad poblacional que
+        <b>{_dep_min}</b> — y eso es solo una de las 18 formas en que esta provincia cambia
+        según dónde la mires. Tocá una región abajo, o cualquier departamento del mapa.
     </div>
     """,
     unsafe_allow_html=True,
@@ -439,6 +467,23 @@ for col, (nombre, emoji, clase) in zip(cols_chips[1:], REGIONES_CHIPS):
             st.session_state["pending_region"] = nombre
             st.rerun()
 st.markdown("<br>", unsafe_allow_html=True)
+
+with st.expander("📚 Fuentes de datos (18 dimensiones, todas con fuente oficial citada)"):
+    st.markdown("""
+- **Población, educación, salud, estructura etaria**: Censo Nacional 2022 (INDEC)
+- **Agricultura, ganadería, riego**: Censo Nacional Agropecuario 2018 (INDEC)
+- **Minería**: Catastro Minero de Río Negro
+- **Energía**: Dirección Provincial de Agua (DPA), Secretaría de Energía de la Nación
+- **Hidrocarburos**: Secretaría de Energía — registro y producción de pozos
+- **Turismo**: Encuesta de Ocupación Hotelera -EOH- (INDEC), turismo.rionegro.gov.ar
+- **Conectividad**: ANAC, Tren Patagónico S.A., Vialidad Nacional
+- **Ambiente**: Administración de Parques Nacionales, Secretaría de Ambiente de Río Negro, SMN
+- **Pesca e industria**: Gobierno de Río Negro
+- **Cartografía**: Instituto Geográfico Nacional (IGN)
+
+Cada ficha de departamento tiene además sus propias notas metodológicas específicas
+(expandir "Fuentes y notas metodológicas" en el panel de perfil).
+    """)
 
 col_mapa, col_perfil = st.columns([2, 1])
 
