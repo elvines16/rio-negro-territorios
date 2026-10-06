@@ -282,6 +282,8 @@ CAMPOS_TEXTO = {
     "Ambiente_ecorregion": "Ecorregión",
     "Ambiente_rio_principal": "Río / cuerpo de agua principal",
     "Ambiente_clima": "Caracterización climática",
+    "Ambiente_riesgo_incendio": "Riesgo de incendio (histórico)",
+    "Ambiente_riesgo_inundacion": "Riesgo de inundación (histórico)",
 }
 
 # Centrales hidroeléctricas del río Limay: generación compartida con Neuquén.
@@ -672,6 +674,7 @@ with col_perfil:
         "Conectividad": ["Conectividad_aeropuertos", "Conectividad_estaciones_tren",
                          "Conectividad_rutas_nacionales", "Conectividad_puerto"],
         "Ambiente": ["Ambiente_ecorregion", "Ambiente_rio_principal", "Ambiente_clima",
+                    "Ambiente_riesgo_incendio", "Ambiente_riesgo_inundacion",
                     "Turismo_parques_nacionales", "Turismo_areas_naturales_protegidas"],
         "Pesca e industria": ["Pesca_desembarque_toneladas_2025", "Industria_parques_industriales"],
     }
