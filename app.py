@@ -431,18 +431,20 @@ st.sidebar.caption(
 _d = df.set_index("Departamento")["Densidad_hab_km2"]
 _dep_max, _dep_min = _d.idxmax(), _d.idxmin()
 _ratio_densidad = round(_d.max() / _d.min())
+_total_indicadores = len(INDICADORES) + len(CAMPOS_TEXTO)
 
 st.markdown(
     f"""
     <div class="hero-kicker">¿Cómo puede una misma provincia contener territorios tan distintos?</div>
     <div class="hero-title">Río Negro: una provincia, seis mundos</div>
     <div class="hero-subtitle">
-        No existe una única Río Negro. Explorá 18 dimensiones de datos abiertos —población,
-        producción, energía, ambiente— sobre sus 13 departamentos y 6 regiones, y descubrilo vos mismo.
+        No existe una única Río Negro. Explorá {_total_indicadores} indicadores de datos abiertos
+        —población, producción, energía, ambiente— sobre sus 13 departamentos y 6 regiones,
+        y descubrilo vos mismo.
     </div>
     <div class="hero-fact">
         🔎 <b>{_dep_max}</b> tiene <b>{_ratio_densidad} veces</b> más densidad poblacional que
-        <b>{_dep_min}</b> — y eso es solo una de las 18 formas en que esta provincia cambia
+        <b>{_dep_min}</b> — y eso es solo una de las tantas formas en que esta provincia cambia
         según dónde la mires. Tocá una región abajo, o cualquier departamento del mapa.
     </div>
     """,
@@ -470,7 +472,7 @@ for col, (nombre, emoji, clase) in zip(cols_chips[1:], REGIONES_CHIPS):
             st.rerun()
 st.markdown("<br>", unsafe_allow_html=True)
 
-with st.expander("📚 Fuentes de datos (18 dimensiones, todas con fuente oficial citada)"):
+with st.expander(f"📚 Fuentes de datos ({_total_indicadores} indicadores, todos con fuente oficial citada)"):
     st.markdown("""
 - **Población, educación, salud, estructura etaria**: Censo Nacional 2022 (INDEC)
 - **Agricultura, ganadería, riego**: Censo Nacional Agropecuario 2018 (INDEC)
