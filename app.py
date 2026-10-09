@@ -78,6 +78,17 @@ h1, h2, h3 {
     margin: 0.8rem 0 1.2rem 0;
     color: #2B2B26;
 }
+.como-explorar {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.9rem;
+    color: #2B2B26;
+    background-color: transparent;
+    border: 1px dashed #C77B3F;
+    border-radius: 8px;
+    padding: 8px 14px;
+    margin-bottom: 1rem;
+    display: inline-block;
+}
 .hero-title {
     font-family: 'Fraunces', serif;
     font-size: 2.6rem;
@@ -286,6 +297,34 @@ CAMPOS_TEXTO = {
     "Ambiente_riesgo_inundacion": "Riesgo de inundación (histórico)",
 }
 
+# Fuente y período corto por indicador, para mostrar junto al mapa (no el párrafo largo
+# de notas metodológicas, sino una línea rápida de "de dónde sale este dato puntual").
+# Se arma por prefijo del nombre de columna, no uno por uno.
+FUENTES_CORTAS = [
+    (("Poblacion", "Densidad", "Educ_", "Salud_", "Pob_65"), "Censo Nacional 2022 (INDEC)", "2022"),
+    (("Agricultura_", "Riego_", "Ganaderia_"), "Censo Nacional Agropecuario (INDEC)", "2018"),
+    (("Mineria_",), "Catastro Minero de Río Negro", "2026"),
+    (("Energia_",), "DPA / Secretaría de Energía de la Nación", "2026"),
+    (("Hidrocarburos_",), "Secretaría de Energía — registro y producción de pozos", "2025"),
+    (("Turismo_plazas", "Turismo_pernoctaciones", "Turismo_tasa_ocupacion", "Turismo_destino"),
+     "Encuesta de Ocupación Hotelera, INDEC (solo 3 departamentos)", "oct. 2025"),
+    (("Turismo_",), "Turismo Río Negro / Parques Nacionales / Secretaría de Ambiente RN", "2026"),
+    (("Conectividad_",), "ANAC, Tren Patagónico S.A., Vialidad Nacional", "2026"),
+    (("Ambiente_riesgo",), "Servicio Nacional de Manejo del Fuego / AIC — registro histórico", "histórico"),
+    (("Ambiente_clima",), "SMN, normales climatológicas (caracterización aproximada)", "1991-2020"),
+    (("Ambiente_",), "SIB / Administración de Parques Nacionales (clasificación propia)", "2026"),
+    (("Pesca_",), "Revista Puerto / Parte de Pesca", "2025"),
+    (("Industria_",), "Gobierno de Río Negro", "2025"),
+]
+
+
+def fuente_corta(indicador_key):
+    for prefijos, fuente, periodo in FUENTES_CORTAS:
+        if indicador_key.startswith(prefijos):
+            return fuente, periodo
+    return "Ver notas metodológicas", "—"
+
+
 # Centrales hidroeléctricas del río Limay: generación compartida con Neuquén.
 # Se muestran como referencia en el mapa pero NO se suman al total de MW de Río Negro.
 CENTRALES_LIMAY = [
@@ -489,6 +528,18 @@ Cada ficha de departamento tiene además sus propias notas metodológicas espec�
 (expandir "Fuentes y notas metodológicas" en el panel de perfil).
     """)
 
+st.markdown(
+    """
+    <div class="como-explorar">
+        <b>Cómo explorar:</b>
+        1️⃣ Elegí una dimensión &nbsp;→&nbsp;
+        2️⃣ Tocá un departamento (en el mapa o la lista) &nbsp;→&nbsp;
+        3️⃣ Compará abajo con los gráficos
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
 col_mapa, col_perfil = st.columns([2, 1])
 
 # ---------------------------------------------------------------------------
@@ -497,6 +548,8 @@ col_mapa, col_perfil = st.columns([2, 1])
 
 with col_mapa:
     st.subheader(f"Mapa: {indicador_label}")
+    _fuente, _periodo = fuente_corta(indicador_key)
+    st.caption(f"📎 Fuente: {_fuente} · Dato de: {_periodo}")
 
     if indicador_key in INDICADORES_COBERTURA_PARCIAL:
         st.warning(f"⚠️ Cobertura parcial: {INDICADORES_COBERTURA_PARCIAL[indicador_key]}")
@@ -774,10 +827,25 @@ if len(df_scatter) >= 2:
         font={"family": "Inter, sans-serif", "color": "#2B2B26"},
     )
     st.plotly_chart(fig_scatter, use_container_width=True)
+
+    if len(df_scatter) >= 3:
+        correlacion = df_scatter[var_x].corr(df_scatter[var_y])
+        fuerza = abs(correlacion)
+        if fuerza >= 0.7:
+            veredicto, emoji = "relación fuerte", "🔴"
+        elif fuerza >= 0.4:
+            veredicto, emoji = "relación moderada", "🟡"
+        else:
+            veredicto, emoji = "relación débil o nula", "⚪"
+        sentido = "a mayor una, mayor la otra" if correlacion > 0 else "a mayor una, menor la otra"
+        st.markdown(
+            f"**{emoji} {veredicto.capitalize()}** (coeficiente de correlación: {correlacion:.2f}) "
+            f"— {sentido if fuerza >= 0.4 else 'no se observa un patrón claro entre estas dos variables'}."
+        )
     st.caption(
         f"{len(df_scatter)} de 13 departamentos tienen dato en ambas variables. "
-        "Cada punto es un departamento; si se agrupan formando una diagonal, hay relación "
-        "entre las dos variables. Si aparecen dispersos sin patrón, no la hay."
+        "El coeficiente va de -1 a 1: cerca de 0 significa que no hay relación, "
+        "cerca de 1 o -1 significa que sí la hay (positiva o inversa)."
     )
 else:
     st.caption("No hay suficientes departamentos con datos en ambas variables para graficar.")
