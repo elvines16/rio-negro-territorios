@@ -602,16 +602,16 @@ st.markdown(
 
 st.markdown("**¿No sabés por dónde arrancar? Probá una de estas preguntas:**")
 PREGUNTAS_RAPIDAS = [
-    ("📍 ¿Dónde se concentra la población?", "👥 Población", "Poblacion"),
-    ("⚡ ¿Quién produce más energía?", "⚡ Energía", "Energia_MW_instalada"),
-    ("⛏️ ¿Dónde hay más actividad minera?", "⛏️ Minería", "Mineria_minas_formales_totales"),
-    ("🛢️ ¿Dónde se concentra el petróleo?", "🛢️ Hidrocarburos", "Hidrocarburos_pozos_totales"),
-    ("🏖️ ¿Qué zona atrae más turismo?", "🏖️ Turismo", "Turismo_destinos_destacados"),
+    ("📍 Población", "¿Dónde se concentra la población?", "👥 Población", "Poblacion"),
+    ("⚡ Energía", "¿Quién produce más energía?", "⚡ Energía", "Energia_MW_instalada"),
+    ("⛏️ Minería", "¿Dónde hay más actividad minera?", "⛏️ Minería", "Mineria_minas_formales_totales"),
+    ("🛢️ Petróleo", "¿Dónde se concentra el petróleo?", "🛢️ Hidrocarburos", "Hidrocarburos_pozos_totales"),
+    ("🏖️ Turismo", "¿Qué zona atrae más turismo?", "🏖️ Turismo", "Turismo_destinos_destacados"),
 ]
 cols_preguntas = st.columns(len(PREGUNTAS_RAPIDAS))
-for col, (texto, cat, ind) in zip(cols_preguntas, PREGUNTAS_RAPIDAS):
+for col, (texto_corto, texto_completo, cat, ind) in zip(cols_preguntas, PREGUNTAS_RAPIDAS):
     with col:
-        if st.button(texto, key=f"pregunta_{ind}", use_container_width=True):
+        if st.button(texto_corto, key=f"pregunta_{ind}", help=texto_completo, use_container_width=True):
             st.session_state["pending_categoria"] = cat
             st.session_state["pending_indicador"] = ind
             st.rerun()
