@@ -34,6 +34,10 @@ if "pending_region" in st.session_state:
     st.session_state["region_sel"] = st.session_state.pop("pending_region")
 if "pending_departamento" in st.session_state:
     st.session_state["departamento_sel"] = st.session_state.pop("pending_departamento")
+if "pending_categoria" in st.session_state:
+    st.session_state["categoria_sel"] = st.session_state.pop("pending_categoria")
+if "pending_indicador" in st.session_state:
+    st.session_state["indicador_sel"] = st.session_state.pop("pending_indicador")
 
 # ---------------------------------------------------------------------------
 # Estilo visual (tipografía, paleta, componentes)
@@ -77,6 +81,20 @@ h1, h2, h3 {
     padding: 12px 16px;
     margin: 0.8rem 0 1.2rem 0;
     color: #2B2B26;
+}
+.indice-nav {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    color: #6B6558;
+    margin-bottom: 1rem;
+}
+.indice-nav a {
+    color: #C77B3F;
+    text-decoration: none;
+    font-weight: 600;
+}
+.indice-nav a:hover {
+    text-decoration: underline;
 }
 .como-explorar {
     font-family: 'Inter', sans-serif;
@@ -238,6 +256,26 @@ INDICADORES = {
     "Industria_parques_industriales": "Parques industriales y tecnológicos",
     "Pesca_desembarque_toneladas_2025": "Desembarque pesquero 2025 (toneladas)",
 }
+
+# Agrupa los 42 indicadores en 9 categorías, para no mostrar una sola lista larga en el
+# selector. Se arma por prefijo de columna, no a mano uno por uno.
+_PREFIJOS_CATEGORIA = [
+    ("👥 Población", ("Poblacion", "Densidad", "Educ_", "Salud_", "Pob_65")),
+    ("🌾 Agricultura y riego", ("Agricultura_", "Riego_")),
+    ("🐄 Ganadería", ("Ganaderia_",)),
+    ("⛏️ Minería", ("Mineria_",)),
+    ("⚡ Energía", ("Energia_",)),
+    ("🛢️ Hidrocarburos", ("Hidrocarburos_",)),
+    ("🏖️ Turismo", ("Turismo_",)),
+    ("🚗 Conectividad", ("Conectividad_",)),
+    ("🏭 Industria y pesca", ("Industria_", "Pesca_")),
+]
+CATEGORIAS_INDICADORES = {nombre: [] for nombre, _ in _PREFIJOS_CATEGORIA}
+for _clave in INDICADORES:
+    for _nombre_cat, _prefijos in _PREFIJOS_CATEGORIA:
+        if _clave.startswith(_prefijos):
+            CATEGORIAS_INDICADORES[_nombre_cat].append(_clave)
+            break
 
 # Campos que son porcentajes/tasas: para el resumen provincial se promedian (no se suman).
 # Todo lo que no esté acá se trata como cantidad total y se suma.
@@ -431,10 +469,20 @@ region_sel = st.sidebar.selectbox("Región", regiones, key="region_sel")
 
 df_filtrado = df if region_sel == "Todas" else df[df["Region"] == region_sel]
 
+if "categoria_sel" not in st.session_state:
+    st.session_state["categoria_sel"] = "👥 Población"
+categoria_sel = st.sidebar.selectbox(
+    "Categoría", options=list(CATEGORIAS_INDICADORES.keys()), key="categoria_sel",
+)
+
+opciones_indicador = CATEGORIAS_INDICADORES[categoria_sel]
+if "indicador_sel" not in st.session_state or st.session_state["indicador_sel"] not in opciones_indicador:
+    st.session_state["indicador_sel"] = opciones_indicador[0]
 indicador_key = st.sidebar.selectbox(
-    "Dimensión a explorar",
-    options=list(INDICADORES.keys()),
+    "Indicador dentro de esa categoría",
+    options=opciones_indicador,
     format_func=lambda k: INDICADORES[k],
+    key="indicador_sel",
 )
 indicador_label = INDICADORES[indicador_key]
 
@@ -490,6 +538,18 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+st.markdown(
+    """
+    <div class="indice-nav">
+        📑 Ir a: <a href="#mapa-y-perfil">Paso 1: Mapa y perfil</a> ·
+        <a href="#comparar">Paso 2: Comparar</a> ·
+        <a href="#relacion">Paso 3: Relación entre variables</a> ·
+        <a href="#tabla">Paso 4: Tabla completa</a>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
 REGIONES_CHIPS = [
     ("Alto Valle", "🍎", "chip-valle"),
     ("Valle Medio", "🌾", "chip-valle"),
@@ -540,6 +600,24 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+st.markdown("**¿No sabés por dónde arrancar? Probá una de estas preguntas:**")
+PREGUNTAS_RAPIDAS = [
+    ("📍 ¿Dónde se concentra la población?", "👥 Población", "Poblacion"),
+    ("⚡ ¿Quién produce más energía?", "⚡ Energía", "Energia_MW_instalada"),
+    ("⛏️ ¿Dónde hay más actividad minera?", "⛏️ Minería", "Mineria_minas_formales_totales"),
+    ("🛢️ ¿Dónde se concentra el petróleo?", "🛢️ Hidrocarburos", "Hidrocarburos_pozos_totales"),
+    ("🏖️ ¿Qué zona atrae más turismo?", "🏖️ Turismo", "Turismo_destinos_destacados"),
+]
+cols_preguntas = st.columns(len(PREGUNTAS_RAPIDAS))
+for col, (texto, cat, ind) in zip(cols_preguntas, PREGUNTAS_RAPIDAS):
+    with col:
+        if st.button(texto, key=f"pregunta_{ind}", use_container_width=True):
+            st.session_state["pending_categoria"] = cat
+            st.session_state["pending_indicador"] = ind
+            st.rerun()
+
+st.markdown('<a name="mapa-y-perfil"></a>', unsafe_allow_html=True)
+st.subheader("Paso 1 — Explorá el mapa y el perfil de cada departamento")
 col_mapa, col_perfil = st.columns([2, 1])
 
 # ---------------------------------------------------------------------------
@@ -755,7 +833,8 @@ with col_perfil:
 # ---------------------------------------------------------------------------
 
 st.markdown("---")
-st.subheader("Comparar departamentos")
+st.markdown('<a name="comparar"></a>', unsafe_allow_html=True)
+st.subheader("Paso 2 — Comparar departamentos")
 
 comparar = st.multiselect(
     "Elegí dos o más departamentos para comparar en la dimensión seleccionada",
@@ -788,7 +867,8 @@ else:
 # ---------------------------------------------------------------------------
 
 st.markdown("---")
-st.subheader("¿Se relacionan dos variables entre sí?")
+st.markdown('<a name="relacion"></a>', unsafe_allow_html=True)
+st.subheader("Paso 3 — ¿Se relacionan dos variables entre sí?")
 st.caption(
     "Elegí dos dimensiones y mirá si los departamentos siguen un patrón: por ejemplo, "
     "¿los más poblados son también los que más energía generan?"
@@ -854,5 +934,7 @@ else:
 # Tabla completa (transparencia de datos)
 # ---------------------------------------------------------------------------
 
+st.markdown('<a name="tabla"></a>', unsafe_allow_html=True)
+st.subheader("Paso 4 — Revisá todos los datos")
 with st.expander("Ver tabla completa de datos"):
     st.dataframe(df, use_container_width=True)
