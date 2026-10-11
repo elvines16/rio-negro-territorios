@@ -146,6 +146,12 @@ h1, h2, h3 {
     font-size: 0.8rem;
     color: #6B6558;
 }
+[data-testid="stMetricValue"] {
+    white-space: normal !important;
+    overflow-wrap: break-word;
+    font-size: 1.3rem !important;
+    line-height: 1.25 !important;
+}
 
 [data-testid="stExpander"] {
     background-color: #FBF9F5;
@@ -643,8 +649,8 @@ with col_mapa:
                 color=indicador_key,
                 color_continuous_scale="YlOrRd",
                 map_style="carto-positron",
-                zoom=4.6,
-                center={"lat": -40.8, "lon": -67.5},
+                zoom=5.1,
+                center={"lat": -39.9, "lon": -67.0},
                 opacity=0.75,
                 hover_name="Departamento",
                 hover_data={indicador_key: True, "Region": True},
@@ -685,6 +691,24 @@ with col_mapa:
                         hoverinfo="text",
                         name=info["label"],
                         showlegend=True,
+                    )
+
+            # Resaltar el contorno del departamento elegido en "Ver perfil de un departamento"
+            if departamento_sel != "Toda la provincia":
+                feature_sel = next(
+                    (f for f in geojson["features"]
+                     if f["properties"].get(GEOJSON_NAME_FIELD) == departamento_sel),
+                    None,
+                )
+                if feature_sel is not None:
+                    lats_sel, lons_sel = lineas_a_lat_lon({"features": [feature_sel]})
+                    fig.add_scattermap(
+                        lat=lats_sel, lon=lons_sel,
+                        mode="lines",
+                        line={"width": 4, "color": "#2B2B26"},
+                        name=f"Seleccionado: {departamento_sel}",
+                        hoverinfo="skip",
+                        showlegend=False,
                     )
 
             # Centrales del Limay: solo como referencia visual, no coloreadas ni sumadas al total de RN
