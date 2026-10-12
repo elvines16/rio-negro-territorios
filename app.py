@@ -152,6 +152,26 @@ h1, h2, h3 {
     font-size: 1.3rem !important;
     line-height: 1.25 !important;
 }
+.tarjeta-dato {
+    background-color: #F0EBE1;
+    border-radius: 10px;
+    padding: 10px 14px;
+    border-left: 4px solid #C77B3F;
+    margin-bottom: 10px;
+}
+.tarjeta-label {
+    font-size: 0.8rem;
+    color: #6B6558;
+    margin-bottom: 2px;
+}
+.tarjeta-valor {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: #2B2B26;
+    line-height: 1.25;
+    white-space: normal;
+    overflow-wrap: break-word;
+}
 
 [data-testid="stExpander"] {
     background-color: #FBF9F5;
@@ -292,7 +312,28 @@ CAMPOS_TASA = {
     "Ganaderia_bovinos_pct", "Ganaderia_ovinos_pct", "Ganaderia_caprinos_pct",
     "Ganaderia_porcinos_pct", "Ganaderia_equinos_pct", "Turismo_tasa_ocupacion_pct",
 }
-SUPERFICIE_TOTAL_RN_KM2 = 203013  # fuente: Gobierno de Río Negro, rionegro.gov.ar/geografia
+SUPERFICIE_TOTAL_RN_KM2 = 203013  # fuente: Gobierno de Río Negro, rionegro.gov.ar/geografia — solo informativo
+
+# Para cada indicador de tasa/porcentaje, la columna que mejor aproxima el "peso" correcto
+# de cada departamento al promediar. Promediar porcentajes sin ponderar trata igual a un
+# departamento de 380.000 habitantes que a uno de 1.500 — esto lo corrige.
+PESOS_CAMPOS_TASA = {
+    "Educ_secundaria_completa_pct": "Poblacion",
+    "Salud_solo_publico_pct": "Poblacion",
+    "Pob_65mas_pct": "Poblacion",
+    "Agricultura_frutales_pct": "Agricultura_superficie_implantada_ha",
+    "Agricultura_forrajeras_pct": "Agricultura_superficie_implantada_ha",
+    "Agricultura_cereales_pct": "Agricultura_superficie_implantada_ha",
+    "Agricultura_bosques_pct": "Agricultura_superficie_implantada_ha",
+    "Riego_pct_superficie_regada": "Agricultura_superficie_implantada_ha",
+    "Riego_pct_eap_con_riego": "Agricultura_superficie_implantada_ha",
+    "Ganaderia_bovinos_pct": "Ganaderia_cabezas_totales",
+    "Ganaderia_ovinos_pct": "Ganaderia_cabezas_totales",
+    "Ganaderia_caprinos_pct": "Ganaderia_cabezas_totales",
+    "Ganaderia_porcinos_pct": "Ganaderia_cabezas_totales",
+    "Ganaderia_equinos_pct": "Ganaderia_cabezas_totales",
+    "Turismo_tasa_ocupacion_pct": "Turismo_plazas_disponibles_oct2025",
+}
 
 # Indicadores que NO cubren los 13 departamentos (solo destinos relevados por una fuente puntual).
 # Se muestran igual, pero con una advertencia explícita para no sugerir comparabilidad provincial.
@@ -309,16 +350,29 @@ INDICADORES_COBERTURA_PARCIAL = {
 
 
 def construir_resumen_provincial(df_base):
-    """Arma una fila sintética con el resumen de toda la provincia (o de la región filtrada)."""
-    resumen = {"Departamento": "Toda la provincia", "Region": "Río Negro (13 departamentos)"}
+    """Arma una fila sintética con el resumen de toda la provincia (o de la región filtrada).
+    Densidad usa la superficie real sumada del subconjunto filtrado (no la de toda la
+    provincia). Los porcentajes se promedian ponderados por un peso apropiado (población,
+    superficie implantada o cabezas de ganado, según el caso) en vez de un promedio simple
+    entre departamentos de tamaños muy distintos."""
+    resumen = {
+        "Departamento": "Toda la provincia" if len(df_base) == 13 else f"Región: {df_base['Region'].iloc[0]}",
+        "Region": f"{len(df_base)} departamento(s) de Río Negro",
+    }
     for key in INDICADORES:
         if key not in df_base.columns:
             continue
         serie = df_base[key].dropna()
         if key == "Densidad_hab_km2":
-            resumen[key] = df_base["Poblacion"].sum() / SUPERFICIE_TOTAL_RN_KM2
+            superficie_total = df_base["Superficie_km2"].sum()
+            resumen[key] = df_base["Poblacion"].sum() / superficie_total if superficie_total else None
         elif key in CAMPOS_TASA:
-            resumen[key] = serie.mean() if len(serie) else None
+            col_peso = PESOS_CAMPOS_TASA.get(key)
+            sub = df_base.dropna(subset=[key, col_peso]) if col_peso else df_base.dropna(subset=[key])
+            if col_peso and sub[col_peso].sum() > 0:
+                resumen[key] = (sub[key] * sub[col_peso]).sum() / sub[col_peso].sum()
+            else:
+                resumen[key] = serie.mean() if len(serie) else None
         else:
             resumen[key] = serie.sum() if len(serie) else None
     for key in CAMPOS_TEXTO:
@@ -387,6 +441,10 @@ CENTRALES_LIMAY = [
 @st.cache_data
 def cargar_tabla():
     df = pd.read_csv(CSV_PATH)
+    # Superficie real en km², derivada de Poblacion/Densidad (son exactas, vienen del
+    # mismo cálculo original del Censo 2022). Se usa para sumar área real al filtrar por
+    # región, en vez de dividir siempre por la superficie de toda la provincia.
+    df["Superficie_km2"] = df["Poblacion"] / df["Densidad_hab_km2"]
     return df
 
 
@@ -609,7 +667,7 @@ st.markdown(
 st.markdown("**¿No sabés por dónde arrancar? Probá una de estas preguntas:**")
 PREGUNTAS_RAPIDAS = [
     ("📍 Población", "¿Dónde se concentra la población?", "👥 Población", "Poblacion"),
-    ("⚡ Energía", "¿Quién produce más energía?", "⚡ Energía", "Energia_MW_instalada"),
+    ("⚡ Energía", "¿Quién tiene más potencia eléctrica instalada?", "⚡ Energía", "Energia_MW_instalada"),
     ("⛏️ Minería", "¿Dónde hay más actividad minera?", "⛏️ Minería", "Mineria_minas_formales_totales"),
     ("🛢️ Petróleo", "¿Dónde se concentra el petróleo?", "🛢️ Hidrocarburos", "Hidrocarburos_pozos_totales"),
     ("🏖️ Turismo", "¿Qué zona atrae más turismo?", "🏖️ Turismo", "Turismo_destinos_destacados"),
@@ -843,10 +901,16 @@ with col_perfil:
                     continue
                 label = INDICADORES.get(key) or CAMPOS_TEXTO.get(key, key)
                 valor = fila[key]
-                if isinstance(valor, str):
-                    st.metric(label, valor)
-                else:
-                    st.metric(label, f"{valor:,.2f}".rstrip("0").rstrip("."))
+                valor_fmt = valor if isinstance(valor, str) else f"{valor:,.2f}".rstrip("0").rstrip(".")
+                st.markdown(
+                    f"""
+                    <div class="tarjeta-dato">
+                        <div class="tarjeta-label">{label}</div>
+                        <div class="tarjeta-valor">{valor_fmt}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
     if isinstance(fila.get("Fuente_notas"), str):
         with st.expander("Fuentes y notas metodológicas"):
@@ -861,8 +925,9 @@ st.markdown('<a name="comparar"></a>', unsafe_allow_html=True)
 st.subheader("Paso 2 — Comparar departamentos")
 
 comparar = st.multiselect(
-    "Elegí dos o más departamentos para comparar en la dimensión seleccionada",
-    options=df["Departamento"].tolist(),
+    "Elegí dos o más departamentos para comparar en la dimensión seleccionada"
+    + ("" if region_sel == "Todas" else f" (filtrado a la región: {region_sel})"),
+    options=df_filtrado["Departamento"].tolist(),
     default=df_filtrado["Departamento"].tolist()[:3],
 )
 
@@ -950,6 +1015,11 @@ if len(df_scatter) >= 2:
         f"{len(df_scatter)} de 13 departamentos tienen dato en ambas variables. "
         "El coeficiente va de -1 a 1: cerca de 0 significa que no hay relación, "
         "cerca de 1 o -1 significa que sí la hay (positiva o inversa)."
+    )
+    st.caption(
+        "⚠️ Esto es exploratorio, no una prueba estadística: con apenas 13 departamentos, "
+        "un solo valor extremo puede mover mucho el resultado, y una correlación no implica "
+        "que una variable cause la otra."
     )
 else:
     st.caption("No hay suficientes departamentos con datos en ambas variables para graficar.")
