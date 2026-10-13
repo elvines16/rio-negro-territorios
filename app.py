@@ -12,6 +12,7 @@ Estructura esperada de datos (carpeta data/):
 """
 
 import json
+import math
 import os
 
 import pandas as pd
@@ -318,21 +319,43 @@ SUPERFICIE_TOTAL_RN_KM2 = 203013  # fuente: Gobierno de Río Negro, rionegro.gov
 # de cada departamento al promediar. Promediar porcentajes sin ponderar trata igual a un
 # departamento de 380.000 habitantes que a uno de 1.500 — esto lo corrige.
 PESOS_CAMPOS_TASA = {
-    "Educ_secundaria_completa_pct": "Poblacion",
+    # Pob_65mas_pct y Salud_solo_publico_pct: el denominador censal original es
+    # "población total" / "población en hogares familiares" — Poblacion es correcto
+    # o una aproximación muy cercana.
     "Salud_solo_publico_pct": "Poblacion",
     "Pob_65mas_pct": "Poblacion",
+    # Agricultura_*_pct y Ganaderia_*_pct: ponderar por su propio total (superficie
+    # implantada / cabezas totales) es exactamente el denominador con el que se calculó
+    # cada porcentaje originalmente.
     "Agricultura_frutales_pct": "Agricultura_superficie_implantada_ha",
     "Agricultura_forrajeras_pct": "Agricultura_superficie_implantada_ha",
     "Agricultura_cereales_pct": "Agricultura_superficie_implantada_ha",
     "Agricultura_bosques_pct": "Agricultura_superficie_implantada_ha",
-    "Riego_pct_superficie_regada": "Agricultura_superficie_implantada_ha",
-    "Riego_pct_eap_con_riego": "Agricultura_superficie_implantada_ha",
     "Ganaderia_bovinos_pct": "Ganaderia_cabezas_totales",
     "Ganaderia_ovinos_pct": "Ganaderia_cabezas_totales",
     "Ganaderia_caprinos_pct": "Ganaderia_cabezas_totales",
     "Ganaderia_porcinos_pct": "Ganaderia_cabezas_totales",
     "Ganaderia_equinos_pct": "Ganaderia_cabezas_totales",
-    "Turismo_tasa_ocupacion_pct": "Turismo_plazas_disponibles_oct2025",
+}
+
+# Indicadores para los que NO se muestra un número agregado a nivel provincia/región:
+# o el denominador correcto no está disponible en esta tabla (Educ_secundaria_completa_pct
+# usa "población de 18 años y más", no población total; Riego_* no tiene guardada la
+# superficie agropecuaria total ni la cantidad de EAP), o solo hay datos de 3 de los 13
+# departamentos y sumarlos/promediarlos se vería como un total provincial que no es
+# (Turismo_plazas/pernoctaciones/tasa_ocupacion, relevamiento EOH-INDEC parcial).
+SIN_AGREGADO_PROVINCIAL = {
+    "Educ_secundaria_completa_pct": "el denominador censal correcto es población de 18 años "
+        "y más, no población total; esa columna no está guardada en esta tabla",
+    "Riego_pct_superficie_regada": "no se guardó la superficie agropecuaria total por "
+        "departamento (el denominador original del %), solo la superficie implantada",
+    "Riego_pct_eap_con_riego": "no se guardó la cantidad total de EAP (explotaciones "
+        "agropecuarias) por departamento, que es el denominador de este %",
+    "Turismo_plazas_disponibles_oct2025": "el INDEC releva ocupación hotelera en solo 3 de "
+        "los 13 departamentos; sumarlos daría un total que parece provincial y no lo es",
+    "Turismo_pernoctaciones_oct2025": "mismo motivo: cobertura de solo 3 de 13 departamentos",
+    "Turismo_tasa_ocupacion_pct": "mismo motivo, y además no se verificó que coincida el "
+        "período exacto de plazas y pernoctaciones usado en el cálculo original de INDEC",
 }
 
 # Indicadores que NO cubren los 13 departamentos (solo destinos relevados por una fuente puntual).
@@ -361,6 +384,9 @@ def construir_resumen_provincial(df_base):
     }
     for key in INDICADORES:
         if key not in df_base.columns:
+            continue
+        if key in SIN_AGREGADO_PROVINCIAL:
+            resumen[key] = None  # no se muestra: ver SIN_AGREGADO_PROVINCIAL para el motivo
             continue
         serie = df_base[key].dropna()
         if key == "Densidad_hab_km2":
@@ -399,28 +425,29 @@ CAMPOS_TEXTO = {
 # de notas metodológicas, sino una línea rápida de "de dónde sale este dato puntual").
 # Se arma por prefijo del nombre de columna, no uno por uno.
 FUENTES_CORTAS = [
-    (("Poblacion", "Densidad", "Educ_", "Salud_", "Pob_65"), "Censo Nacional 2022 (INDEC)", "2022"),
-    (("Agricultura_", "Riego_", "Ganaderia_"), "Censo Nacional Agropecuario (INDEC)", "2018"),
-    (("Mineria_",), "Catastro Minero de Río Negro", "2026"),
-    (("Energia_",), "DPA / Secretaría de Energía de la Nación", "2026"),
-    (("Hidrocarburos_",), "Secretaría de Energía — registro y producción de pozos", "2025"),
+    (("Poblacion", "Densidad", "Educ_", "Salud_", "Pob_65"), "Censo Nacional 2022 (INDEC)", "2022", False),
+    (("Agricultura_", "Riego_", "Ganaderia_"), "Censo Nacional Agropecuario (INDEC)", "2018", False),
+    (("Mineria_",), "Catastro Minero de Río Negro (cruce espacial propio en parte)", "2026", True),
+    (("Energia_",), "DPA / Secretaría de Energía de la Nación", "2026", False),
+    (("Hidrocarburos_",), "Secretaría de Energía — registro y producción de pozos", "2025", False),
     (("Turismo_plazas", "Turismo_pernoctaciones", "Turismo_tasa_ocupacion", "Turismo_destino"),
-     "Encuesta de Ocupación Hotelera, INDEC (solo 3 departamentos)", "oct. 2025"),
-    (("Turismo_",), "Turismo Río Negro / Parques Nacionales / Secretaría de Ambiente RN", "2026"),
-    (("Conectividad_",), "ANAC, Tren Patagónico S.A., Vialidad Nacional", "2026"),
-    (("Ambiente_riesgo",), "Servicio Nacional de Manejo del Fuego / AIC — registro histórico", "histórico"),
-    (("Ambiente_clima",), "SMN, normales climatológicas (caracterización aproximada)", "1991-2020"),
-    (("Ambiente_",), "SIB / Administración de Parques Nacionales (clasificación propia)", "2026"),
-    (("Pesca_",), "Revista Puerto / Parte de Pesca", "2025"),
-    (("Industria_",), "Gobierno de Río Negro", "2025"),
+     "Encuesta de Ocupación Hotelera, INDEC (solo 3 departamentos)", "oct. 2025", False),
+    (("Turismo_destinos_destacados",), "Turismo Río Negro (asignación a departamento propia)", "2026", True),
+    (("Turismo_",), "Turismo Río Negro / Parques Nacionales / Secretaría de Ambiente RN", "2026", False),
+    (("Conectividad_",), "ANAC, Tren Patagónico S.A., Vialidad Nacional", "2026", False),
+    (("Ambiente_riesgo",), "Clasificación propia sobre antecedentes históricos (SNMF / AIC)", "histórico", True),
+    (("Ambiente_clima",), "Caracterización propia aproximada (normales SMN)", "1991-2020", True),
+    (("Ambiente_",), "Clasificación propia (SIB / Administración de Parques Nacionales)", "2026", True),
+    (("Pesca_",), "Revista Puerto / Parte de Pesca", "2025", False),
+    (("Industria_",), "Gobierno de Río Negro", "2025", False),
 ]
 
 
 def fuente_corta(indicador_key):
-    for prefijos, fuente, periodo in FUENTES_CORTAS:
+    for prefijos, fuente, periodo, es_propio in FUENTES_CORTAS:
         if indicador_key.startswith(prefijos):
-            return fuente, periodo
-    return "Ver notas metodológicas", "—"
+            return fuente, periodo, es_propio
+    return "Ver notas metodológicas", "—", False
 
 
 # Centrales hidroeléctricas del río Limay: generación compartida con Neuquén.
@@ -440,12 +467,41 @@ CENTRALES_LIMAY = [
 
 @st.cache_data
 def cargar_tabla():
-    df = pd.read_csv(CSV_PATH)
-    # Superficie real en km², derivada de Poblacion/Densidad (son exactas, vienen del
-    # mismo cálculo original del Censo 2022). Se usa para sumar área real al filtrar por
-    # región, en vez de dividir siempre por la superficie de toda la provincia.
-    df["Superficie_km2"] = df["Poblacion"] / df["Densidad_hab_km2"]
-    return df
+    return pd.read_csv(CSV_PATH)
+
+
+def area_poligono_km2(geom, lat_ref=-40.0):
+    """Área aproximada de un Polygon/MultiPolygon en km², a partir de sus coordenadas
+    lat/lon (fórmula del lazo, con conversión grado→km según la latitud de referencia).
+    No es un cálculo geodésico exacto, pero usa la geometría real del IGN en vez de
+    aproximar por población/densidad."""
+    km_por_grado_lat = 111.32
+    km_por_grado_lon = 111.32 * math.cos(math.radians(lat_ref))
+    tipo = geom["type"]
+    polys = geom["coordinates"] if tipo == "MultiPolygon" else [geom["coordinates"]]
+    total = 0.0
+    for poly in polys:
+        anillo_ext = poly[0]
+        area_grados = 0.0
+        n = len(anillo_ext)
+        for i in range(n):
+            x1, y1 = anillo_ext[i]
+            x2, y2 = anillo_ext[(i + 1) % n]
+            area_grados += x1 * y2 - x2 * y1
+        total += abs(area_grados) / 2.0
+    return total * km_por_grado_lat * km_por_grado_lon
+
+
+@st.cache_data
+def calcular_superficies_ign(_geojson_data):
+    """Superficie en km² de cada departamento, calculada directo de la capa de
+    departamentos del IGN (no aproximada desde Población/Densidad)."""
+    if _geojson_data is None:
+        return {}
+    return {
+        feat["properties"].get(GEOJSON_NAME_FIELD): area_poligono_km2(feat["geometry"])
+        for feat in _geojson_data["features"]
+    }
 
 
 @st.cache_data
@@ -513,6 +569,11 @@ def puntos_a_lat_lon(geojson_data):
 
 df = cargar_tabla()
 geojson = cargar_geojson()
+_superficies_ign = calcular_superficies_ign(geojson)
+if _superficies_ign:
+    df["Superficie_km2"] = df["Departamento"].map(_superficies_ign)
+else:
+    df["Superficie_km2"] = df["Poblacion"] / df["Densidad_hab_km2"]
 
 # ---------------------------------------------------------------------------
 # Sidebar: navegación
@@ -690,8 +751,13 @@ col_mapa, col_perfil = st.columns([2, 1])
 
 with col_mapa:
     st.subheader(f"Mapa: {indicador_label}")
-    _fuente, _periodo = fuente_corta(indicador_key)
+    _fuente, _periodo, _es_propio = fuente_corta(indicador_key)
     st.caption(f"📎 Fuente: {_fuente} · Dato de: {_periodo}")
+    if _es_propio:
+        st.caption(
+            "📐 **Clasificación/estimación propia del proyecto**, no es una medición "
+            "oficial directa — ver el detalle en Fuentes y notas metodológicas."
+        )
 
     if indicador_key in INDICADORES_COBERTURA_PARCIAL:
         st.warning(f"⚠️ Cobertura parcial: {INDICADORES_COBERTURA_PARCIAL[indicador_key]}")
