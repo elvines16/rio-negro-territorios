@@ -430,9 +430,12 @@ FUENTES_CORTAS = [
     (("Mineria_",), "Catastro Minero de Río Negro (cruce espacial propio en parte)", "2026", True),
     (("Energia_",), "DPA / Secretaría de Energía de la Nación", "2026", False),
     (("Hidrocarburos_",), "Secretaría de Energía — registro y producción de pozos", "2025", False),
+    # OJO: esta regla específica va ANTES que la genérica de abajo a propósito —
+    # "Turismo_destinos_destacados" también empieza con "Turismo_destino", así que si
+    # fuera al revés la regla genérica (INDEC) la capturaría primero por error.
+    (("Turismo_destinos_destacados",), "Turismo Río Negro (asignación a departamento propia)", "2026", True),
     (("Turismo_plazas", "Turismo_pernoctaciones", "Turismo_tasa_ocupacion", "Turismo_destino"),
      "Encuesta de Ocupación Hotelera, INDEC (solo 3 departamentos)", "oct. 2025", False),
-    (("Turismo_destinos_destacados",), "Turismo Río Negro (asignación a departamento propia)", "2026", True),
     (("Turismo_",), "Turismo Río Negro / Parques Nacionales / Secretaría de Ambiente RN", "2026", False),
     (("Conectividad_",), "ANAC, Tren Patagónico S.A., Vialidad Nacional", "2026", False),
     (("Ambiente_riesgo",), "Clasificación propia sobre antecedentes históricos (SNMF / AIC)", "histórico", True),
@@ -470,26 +473,41 @@ def cargar_tabla():
     return pd.read_csv(CSV_PATH)
 
 
-def area_poligono_km2(geom, lat_ref=-40.0):
-    """Área aproximada de un Polygon/MultiPolygon en km², a partir de sus coordenadas
-    lat/lon (fórmula del lazo, con conversión grado→km según la latitud de referencia).
-    No es un cálculo geodésico exacto, pero usa la geometría real del IGN en vez de
-    aproximar por población/densidad."""
-    km_por_grado_lat = 111.32
-    km_por_grado_lon = 111.32 * math.cos(math.radians(lat_ref))
+def _area_anillo_esferico_m2(anillo):
+    """Área de un anillo (lista de [lon, lat] en grados) sobre una esfera, con la
+    fórmula del exceso esférico (la misma que usa Turf.js / Mapbox para 'geodesic area').
+    Mucho más precisa que convertir grados a km con un único factor de latitud, porque
+    integra el seno de la latitud en cada tramo en vez de asumir una franja plana."""
+    RADIO_TIERRA_M = 6378137.0  # WGS84, radio ecuatorial, mismo que usa Turf.js
+    n = len(anillo)
+    if n < 3:
+        return 0.0
+    total = 0.0
+    for i in range(n):
+        if i == n - 2:
+            i_bajo, i_medio, i_alto = n - 2, n - 1, 0
+        elif i == n - 1:
+            i_bajo, i_medio, i_alto = n - 1, 0, 1
+        else:
+            i_bajo, i_medio, i_alto = i, i + 1, i + 2
+        lon1, _ = anillo[i_bajo]
+        lon2, lat2 = anillo[i_medio]
+        lon3, _ = anillo[i_alto]
+        total += (math.radians(lon3) - math.radians(lon1)) * math.sin(math.radians(lat2))
+    return total * RADIO_TIERRA_M ** 2 / 2.0
+
+
+def area_poligono_km2(geom):
+    """Área geodésica (esférica) de un Polygon/MultiPolygon en km², usando la geometría
+    real del IGN. Resta los agujeros (anillos interiores) si los hubiera."""
     tipo = geom["type"]
     polys = geom["coordinates"] if tipo == "MultiPolygon" else [geom["coordinates"]]
-    total = 0.0
+    area_m2 = 0.0
     for poly in polys:
-        anillo_ext = poly[0]
-        area_grados = 0.0
-        n = len(anillo_ext)
-        for i in range(n):
-            x1, y1 = anillo_ext[i]
-            x2, y2 = anillo_ext[(i + 1) % n]
-            area_grados += x1 * y2 - x2 * y1
-        total += abs(area_grados) / 2.0
-    return total * km_por_grado_lat * km_por_grado_lon
+        area_m2 += abs(_area_anillo_esferico_m2(poly[0]))
+        for agujero in poly[1:]:
+            area_m2 -= abs(_area_anillo_esferico_m2(agujero))
+    return area_m2 / 1_000_000
 
 
 @st.cache_data
@@ -696,7 +714,7 @@ for col, (nombre, emoji, clase) in zip(cols_chips[1:], REGIONES_CHIPS):
             st.rerun()
 st.markdown("<br>", unsafe_allow_html=True)
 
-with st.expander(f"📚 Fuentes de datos ({_total_indicadores} indicadores, todos con fuente oficial citada)"):
+with st.expander(f"📚 Fuentes de datos ({_total_indicadores} indicadores, cada uno con su fuente u origen documentado)"):
     st.markdown("""
 - **Población, educación, salud, estructura etaria**: Censo Nacional 2022 (INDEC)
 - **Agricultura, ganadería, riego**: Censo Nacional Agropecuario 2018 (INDEC)
@@ -711,6 +729,11 @@ with st.expander(f"📚 Fuentes de datos ({_total_indicadores} indicadores, todo
 
 Cada ficha de departamento tiene además sus propias notas metodológicas específicas
 (expandir "Fuentes y notas metodológicas" en el panel de perfil).
+
+⚠️ No todos son datos oficiales directos: varios indicadores de Ambiente, Turismo y
+Minería son clasificaciones o asignaciones elaboradas por el proyecto a partir de fuentes
+oficiales (no una medición oficial en sí). Esos casos quedan marcados con 📐 al elegirlos
+en el mapa.
     """)
 
 st.markdown(
@@ -778,10 +801,12 @@ with col_mapa:
                 opacity=0.75,
                 hover_name="Departamento",
                 hover_data={indicador_key: True, "Region": True},
+                labels={indicador_key: indicador_label},
             )
             fig.update_layout(
                 margin={"r": 0, "t": 0, "l": 0, "b": 0},
                 height=550,
+                coloraxis_colorbar_title_text=indicador_label,
                 paper_bgcolor="#FBF9F5",
                 font={"family": "Inter, sans-serif", "color": "#2B2B26"},
             )
@@ -922,9 +947,17 @@ with col_perfil:
             else f"Resumen de la región: {region_sel}"
         )
         st.caption(
-            "Los valores son la suma de los 13 departamentos (o el promedio, cuando el "
-            "indicador ya es un porcentaje/tasa)."
+            "Los indicadores se agregan según su naturaleza y la disponibilidad de datos: "
+            "las cantidades se suman; los porcentajes se promedian ponderados por un total "
+            "apropiado (población, superficie o cabezas, según el caso) solo cuando ese "
+            "denominador correcto está disponible. Los indicadores con cobertura parcial o "
+            "sin un denominador adecuado no se agregan: se muestran \"Sin dato agregado\" acá "
+            "abajo, y hay que mirarlos por departamento."
         )
+        with st.expander("¿Por qué faltan algunos valores acá?"):
+            for _k, _motivo in SIN_AGREGADO_PROVINCIAL.items():
+                _etiqueta = INDICADORES.get(_k, _k)
+                st.markdown(f"- **{_etiqueta}**: {_motivo}.")
     else:
         fila = df[df["Departamento"] == departamento_sel].iloc[0]
         st.markdown(f"### {fila['Departamento']}")
@@ -963,7 +996,21 @@ with col_perfil:
     for titulo, campos in grupos.items():
         with st.expander(titulo, expanded=(titulo == "Población")):
             for key in campos:
+                es_resumen = departamento_sel == "Toda la provincia"
                 if key not in fila or pd.isna(fila[key]):
+                    if es_resumen and key in SIN_AGREGADO_PROVINCIAL:
+                        label = INDICADORES.get(key) or CAMPOS_TEXTO.get(key, key)
+                        st.markdown(
+                            f"""
+                            <div class="tarjeta-dato" style="border-left-color:#B5793A;">
+                                <div class="tarjeta-label">{label}</div>
+                                <div class="tarjeta-valor" style="font-size:1rem;">
+                                    Sin dato agregado — ver "¿Por qué faltan algunos valores acá?" arriba
+                                </div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
                     continue
                 label = INDICADORES.get(key) or CAMPOS_TEXTO.get(key, key)
                 valor = fila[key]
